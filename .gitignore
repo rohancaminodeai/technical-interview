@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Generated RSA keys — never commit private keys
+keys/*.pem
+keys/jwks.json
+
+# SQLite databases (generated/seeded at runtime)
+data/*.sqlite
+*.sqlite
+
+# OS / editor
+.DS_Store

@@ -1,0 +1,11 @@
+.venv/
+.git/
+.pytest_cache/
+__pycache__/
+**/__pycache__/
+*.pyc
+# Generated at runtime into mounted volumes — never bake into the image:
+keys/*.pem
+keys/jwks.json
+data/*.sqlite
+.DS_Store
