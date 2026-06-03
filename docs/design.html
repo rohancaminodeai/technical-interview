@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Single Point of Authentication — System Design Reference</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#1a2027; --panel2:#222c36; --ink:#e6edf3; --muted:#9aa7b4;
+    --accent:#6ea8fe; --accent2:#7ee787; --warn:#f0883e; --danger:#ff7b72; --line:#30363d;
+    --idp:#a371f7; --tenant:#3fb950;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{padding:32px 24px 20px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#161b22,#0f1419)}
+  header h1{margin:0 0 6px;font-size:26px}
+  header p{margin:0;color:var(--muted)}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  nav{position:sticky;top:0;z-index:5;background:rgba(15,20,25,.92);backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line);padding:10px 0}
+  nav .wrap{display:flex;flex-wrap:wrap;gap:8px}
+  nav a{color:var(--muted);text-decoration:none;font-size:13px;padding:5px 11px;border-radius:20px;
+    border:1px solid transparent}
+  nav a:hover{color:var(--ink);border-color:var(--line);background:var(--panel)}
+  section{padding:34px 0;border-bottom:1px solid var(--line)}
+  h2{font-size:21px;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+  h2 .num{font-size:13px;color:var(--accent);border:1px solid var(--accent);border-radius:6px;
+    padding:1px 8px;font-weight:600}
+  .sub{color:var(--muted);margin:0 0 18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:14px 0}
+  .mermaid{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;
+    text-align:center;overflow-x:auto}
+  table{width:100%;border-collapse:collapse;margin:6px 0;font-size:14px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--accent);font-weight:600}
+  td.before{color:var(--danger)} td.after{color:var(--accent2)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  code,pre{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace}
+  pre{background:#0b0f14;border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto;
+    font-size:13px;line-height:1.55}
+  .tok-key{color:var(--accent)} .tok-str{color:var(--accent2)} .tok-cm{color:var(--muted)}
+  .steps{counter-reset:s;list-style:none;padding:0;margin:0}
+  .steps li{counter-increment:s;position:relative;padding:12px 14px 12px 52px;margin:8px 0;
+    background:var(--panel2);border:1px solid var(--line);border-radius:10px}
+  .steps li::before{content:counter(s);position:absolute;left:14px;top:12px;width:26px;height:26px;
+    background:var(--accent);color:#0b0f14;border-radius:50%;display:grid;place-items:center;
+    font-weight:700;font-size:13px}
+  .pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:20px;margin-left:6px}
+  .p200{background:rgba(63,185,80,.18);color:var(--accent2)}
+  .p401{background:rgba(240,136,62,.18);color:var(--warn)}
+  .p403{background:rgba(255,123,114,.18);color:var(--danger)}
+  .callout{border-left:4px solid var(--accent);background:var(--panel);padding:14px 18px;border-radius:0 10px 10px 0;margin:16px 0}
+  .callout.danger{border-color:var(--danger)} .callout.warn{border-color:var(--warn)}
+  .callout.good{border-color:var(--accent2)}
+  .callout b{color:var(--ink)}
+  .open{color:var(--accent2);font-weight:700} .closed{color:var(--danger);font-weight:700}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:10px}
+  .dot{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:middle}
+  footer{padding:30px 24px;color:var(--muted);font-size:13px;text-align:center}
+  a.link{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Single Point of Authentication</h1>
+    <p>System design reference — log in once, reach every entitled tenant, without breaking tenant data isolation.</p>
+  </div>
+</header>
+
+<nav><div class="wrap">
+  <a href="#principle">Principle</a>
+  <a href="#beforeafter">Before / After</a>
+  <a href="#components">Components</a>
+  <a href="#login">Login flow</a>
+  <a href="#token">The token</a>
+  <a href="#validate">Validation</a>
+  <a href="#trust">Trust boundary</a>
+  <a href="#availability">Fail open/closed</a>
+  <a href="#migration">Migration</a>
+</div></nav>
+
+<div class="wrap">
+
+<section id="principle">
+  <h2><span class="num">01</span> Core principle</h2>
+  <p class="sub">The one idea the whole design hangs on.</p>
+  <div class="callout good">
+    <b>Centralize <i>authentication</i>. Keep <i>authorization</i> local.</b><br/>
+    A central <b>Identity Provider (IdP)</b> proves <i>who you are</i> and which tenants you may
+    reach. Each <b>tenant</b> decides <i>what you can do</i> against its <i>own</i> data. The IdP
+    never touches tenant business data; tenants never authenticate users themselves.
+  </div>
+</section>
+
+<section id="beforeafter">
+  <h2><span class="num">02</span> Where identity lives — before vs. after</h2>
+  <p class="sub">What moves to the center, and what stays in the tenant.</p>
+  <table>
+    <tr><th>&nbsp;</th><th>Before (today)</th><th>After (this design)</th></tr>
+    <tr><td><b>Credentials</b></td><td class="before">Duplicated in each tenant's <code>users</code> table</td><td class="after">Central IdP — one record per human</td></tr>
+    <tr><td><b>Password check</b></td><td class="before">Each tenant's PHP app</td><td class="after">Central IdP only</td></tr>
+    <tr><td><b>Session</b></td><td class="before">PHP/Apache container, per tenant</td><td class="after">Stateless JWT held by the client</td></tr>
+    <tr><td><b>Cross-tenant link</b></td><td class="before">None — N logins per person</td><td class="after"><code>entitlements</code> claim in the token</td></tr>
+    <tr><td><b>Tenant's job</b></td><td class="before">Authenticate <b>+</b> authorize</td><td class="after">Authorize + resolve only (<code>idp_sub</code>)</td></tr>
+  </table>
+  <p class="sub">Tenants keep their <code>users</code> table for local identity (profile, local roles) and gain one column — <code>idp_sub</code> — linking the local row to the global identity.</p>
+</section>
+
+<section id="components">
+  <h2><span class="num">03</span> Component map</h2>
+  <p class="sub">One identity account; each tenant stays in its own isolated account.</p>
+  <div class="mermaid">
+flowchart TD
+    User([End User])
+    subgraph ID["🔐 Identity Account (shared services)"]
+        IdP["Central Auth / IdP<br/>POST /login · JWKS<br/>private key in KMS"]
+        IDB[("Identity DB<br/>global users · hashes<br/>entitlements")]
+        IdP --- IDB
+    end
+    subgraph TA["Workload Account — Tenant A"]
+        AppA["Tenant App A<br/>validates JWT offline<br/>/me · /data"]
+        DBA[("MySQL A<br/>local users (idp_sub)")]
+        AppA --- DBA
+    end
+    subgraph TB["Workload Account — Tenant B"]
+        AppB["Tenant App B<br/>validates JWT offline<br/>/me · /data"]
+        DBB[("MySQL B<br/>local users (idp_sub)")]
+        AppB --- DBB
+    end
+    User -- "1 · login once" --> IdP
+    IdP -- "2 · signed JWT<br/>(sub + entitlements)" --> User
+    User -- "3 · Bearer JWT" --> AppA
+    User -- "3 · Bearer JWT" --> AppB
+    AppA -. "public key (cached,<br/>offline after first fetch)" .-> IdP
+    AppB -. "public key (cached)" .-> IdP
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:var(--idp)"></span>Identity = trust anchor</span>
+    <span><span class="dot" style="background:var(--tenant)"></span>Tenants = isolated, verify only</span>
+    <span>— solid = token flow &nbsp;·&nbsp; ┄ dashed = one-time key fetch</span>
+  </div>
+</section>
+
+<section id="login">
+  <h2><span class="num">04</span> Login &amp; access flow</h2>
+  <p class="sub">One login yields a credential that opens every entitled tenant.</p>
+  <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant I as Central IdP
+    participant A as Tenant A
+    participant B as Tenant B
+    U->>I: POST /login (email, password)
+    I->>I: verify bcrypt hash · read entitlements
+    I-->>U: signed JWT {sub, entitlements:{A,B}, exp}
+    Note over U,B: same token, no second login
+    U->>A: GET /data  (Bearer JWT)
+    A->>A: verify signature (cached key) · check exp/iss/aud · A in entitlements?
+    A->>A: resolve sub → local user (idp_sub)
+    A-->>U: 200  tenant A data
+    U->>B: GET /data  (same Bearer JWT)
+    B->>B: verify · B in entitlements? · resolve locally
+    B-->>U: 200  tenant B data
+  </div>
+  <div class="callout warn">
+    If the token's <code>entitlements</code> did <b>not</b> include a tenant, that tenant returns
+    <span class="pill p403">403</span> — the isolation invariant, enforced before any data is read.
+  </div>
+</section>
+
+<section id="token">
+  <h2><span class="num">05</span> The credential — a signed JWT</h2>
+  <p class="sub">Self-contained: the tenant trusts the signature, not the IdP's uptime.</p>
+  <pre><span class="tok-cm">// header</span>
+{ <span class="tok-key">"alg"</span>: <span class="tok-str">"RS256"</span>, <span class="tok-key">"kid"</span>: <span class="tok-str">"key-2026-06"</span> }   <span class="tok-cm">// asymmetric — tenants verify, never sign</span>
+
+<span class="tok-cm">// payload</span>
+{
+  <span class="tok-key">"iss"</span>: <span class="tok-str">"https://auth.platform.example"</span>,  <span class="tok-cm">// issuer  — tenant checks</span>
+  <span class="tok-key">"aud"</span>: <span class="tok-str">"platform-tenants"</span>,             <span class="tok-cm">// audience — tenant checks</span>
+  <span class="tok-key">"sub"</span>: <span class="tok-str">"u_8f3a…"</span>,                      <span class="tok-cm">// stable GLOBAL user id</span>
+  <span class="tok-key">"iat"</span>: 1700000000,
+  <span class="tok-key">"exp"</span>: 1700000900,                       <span class="tok-cm">// short TTL ~5–15 min</span>
+  <span class="tok-key">"jti"</span>: <span class="tok-str">"tok_4b1c…"</span>,                    <span class="tok-cm">// unique id (future revocation)</span>
+  <span class="tok-key">"entitlements"</span>: {                       <span class="tok-cm">// which tenants + roles</span>
+    <span class="tok-key">"tenant_a"</span>: [<span class="tok-str">"member"</span>],
+    <span class="tok-key">"tenant_b"</span>: [<span class="tok-str">"admin"</span>]
+  }
+}</pre>
+</section>
+
+<section id="validate">
+  <h2><span class="num">06</span> What the tenant checks (every request, offline)</h2>
+  <p class="sub">No call to the IdP on the hot path — only a cached public key.</p>
+  <ol class="steps">
+    <li>Extract <code>Authorization: Bearer &lt;jwt&gt;</code> <span class="pill p401">401 if missing</span></li>
+    <li>Verify signature with cached public key, <b>algorithm pinned to <code>["RS256"]</code></b> — rejects <code>alg:none</code> &amp; HS256 confusion <span class="pill p401">401</span></li>
+    <li>Check <code>exp</code> / <code>nbf</code> (±60s skew), <code>iss</code>, <code>aud</code> <span class="pill p401">401</span></li>
+    <li>Is <b>this</b> <code>tenant_id</code> in <code>entitlements</code>? <span class="pill p403">403 if not</span></li>
+    <li>Resolve <code>sub</code> → local <code>users</code> row via <code>idp_sub</code> <span class="pill p403">403 if no mapping</span></li>
+    <li>Serve against <b>this tenant's DB only</b> <span class="pill p200">200</span></li>
+  </ol>
+  <div class="callout danger">
+    <b>Isolation invariant:</b> a token whose <code>entitlements</code> does not name tenant X
+    <b>MUST NOT</b> read tenant X's data. Enforced at step 4 — the single most important test.
+  </div>
+</section>
+
+<section id="trust">
+  <h2><span class="num">07</span> Trust boundaries</h2>
+  <p class="sub">Who trusts whom — and who can never forge a token.</p>
+  <div class="mermaid">
+flowchart TD
+    KMS["🔑 Trust ANCHOR<br/>IdP private signing key (KMS)<br/>never leaves identity account"]
+    KMS == "signs every token" ==> TOK["Signed JWT"]
+    TOK --> A["Tenant A<br/>verifies with PUBLIC key"]
+    TOK --> B["Tenant B<br/>verifies with PUBLIC key"]
+    A -. "NO mutual trust" .-x B
+  </div>
+  <div class="grid2">
+    <div class="card"><b style="color:var(--idp)">IdP = root of trust</b><br/>
+      Private key signs every token, lives in KMS. A compromise of any <i>tenant</i> cannot forge a token — tenants hold only the public key.</div>
+    <div class="card"><b style="color:var(--tenant)">Tenants never trust each other</b><br/>
+      A token scoped to A is rejected by B via <code>aud</code> + <code>entitlements</code>. Each tenant queries only its own DB. Trust is one-way: IdP → tenant.</div>
+  </div>
+</section>
+
+<section id="availability">
+  <h2><span class="num">08</span> If the IdP is down — fail open vs. closed</h2>
+  <p class="sub">Offline validation lets in-flight traffic survive an outage; identity is never invented.</p>
+  <table>
+    <tr><th>Scenario</th><th>Behavior</th><th>Why</th></tr>
+    <tr><td>Valid, unexpired token in hand</td><td class="open">FAIL OPEN — serve</td><td>Verified offline with cached key; IdP not on hot path</td></tr>
+    <tr><td>Token expired / new login</td><td class="closed">FAIL CLOSED — deny</td><td>Identity cannot be minted without the IdP. Never invent identity</td></tr>
+    <tr><td>Tenant boots while IdP unreachable</td><td class="open">Serve from cached key</td><td>Key availability must not depend on a live IdP</td></tr>
+  </table>
+  <div class="callout">
+    Net: IdP availability gates <b>new</b> authentication, not steady-state validation. An outage
+    degrades gracefully — bounded in <i>time</i> (one token TTL), not by taking all 50 tenants down at once.
+  </div>
+</section>
+
+<section id="migration">
+  <h2><span class="num">09</span> Migrating ~50 tenants — no downtime, no forced re-login</h2>
+  <p class="sub">Incremental, per-tenant, reversible at every step.</p>
+  <div class="mermaid">
+flowchart LR
+    S1["1 · Stand up IdP<br/>(tenants untouched)"] --> S2["2 · Backfill per tenant<br/>import hashes · dedupe by<br/>verified email · stamp idp_sub"]
+    S2 --> S3["3 · Dual-auth path<br/>accept local session OR JWT<br/>(per-tenant flag)"]
+    S3 --> S4["4 · Dual-write<br/>changes to local + IdP<br/>local stays authoritative"]
+    S4 --> S5["5 · Drain sessions<br/>old sessions live till expiry<br/>new logins → central"]
+    S5 --> S6["6 · IdP authoritative<br/>stop local writes<br/>retire local auth last"]
+  </div>
+  <div class="grid2">
+    <div class="card"><b>No forced re-auth</b><br/>Existing PHP sessions stay valid until natural expiry; only <i>new</i> logins route through central auth.</div>
+    <div class="card"><b>Instant rollback</b><br/>Flip the per-tenant flag back to local auth. Local tables stay intact via dual-write, so rollback is lossless.</div>
+  </div>
+  <div class="callout warn">
+    <b>Hard part — identity reconciliation:</b> the same human is separate rows across tenants.
+    Merge only on <b>verified</b> email into one global identity; unverified/mismatched → keep separate, offer account-linking.
+  </div>
+</section>
+
+</div>
+
+<footer>
+  System design reference · pairs with <a class="link" href="ARCHITECTURE.md">ARCHITECTURE.md</a>
+  and the <a class="link" href="adr/">ADRs</a>. Diagrams render via Mermaid (needs internet on first load).
+</footer>
+
+<script>
+  mermaid.initialize({
+    startOnLoad:true,
+    theme:'dark',
+    themeVariables:{
+      primaryColor:'#222c36', primaryTextColor:'#e6edf3', primaryBorderColor:'#30363d',
+      lineColor:'#6ea8fe', fontSize:'14px',
+      clusterBkg:'#161b22', clusterBorder:'#30363d'
+    },
+    flowchart:{curve:'basis'}
+  });
+</script>
+</body>
+</html>
