@@ -1,0 +1,68 @@
+# Three-service prototype: central auth (8000) + two tenants (8001/8002).
+# A one-shot `init` service generates the RSA keypair + JWKS and seeds the demo
+# DBs into shared bind-mounts; every other service waits for it to finish, so
+# keys and databases always exist before anything tries to use them.
+
+x-app: &app
+  build: .
+  environment:
+    KEYS_DIR: /app/keys
+    DATA_DIR: /app/data
+  volumes:
+    - ./keys:/app/keys   # IdP publishes the public key here; tenants read it (offline validation)
+    - ./data:/app/data   # IdP + tenant SQLite DBs
+
+services:
+  init:
+    <<: *app
+    command: sh -c "python keys/gen_keys.py && python seed.py"
+
+  auth:
+    <<: *app
+    command: uvicorn auth_service.asgi:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  tenant_a:
+    <<: *app
+    command: uvicorn tenant_service.asgi:app --host 0.0.0.0 --port 8000
+    environment:
+      TENANT_ID: tenant_a
+      KEYS_DIR: /app/keys
+      DATA_DIR: /app/data
+    ports:
+      - "8001:8000"
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  tenant_b:
+    <<: *app
+    command: uvicorn tenant_service.asgi:app --host 0.0.0.0 --port 8000
+    environment:
+      TENANT_ID: tenant_b
+      KEYS_DIR: /app/keys
+      DATA_DIR: /app/data
+    ports:
+      - "8002:8000"
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
