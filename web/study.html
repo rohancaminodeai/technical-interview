@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Study Guide — Single Point of Authentication (OAuth & SSO made simple)</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#1a2027; --panel2:#222c36; --ink:#e6edf3; --muted:#9aa7b4;
+    --accent:#6ea8fe; --accent2:#7ee787; --warn:#f0883e; --danger:#ff7b72; --line:#30363d;
+    --idp:#a371f7; --tenant:#3fb950;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{padding:34px 24px 24px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#161b22,#0f1419)}
+  header h1{margin:0 0 8px;font-size:26px}
+  header p{margin:0;color:var(--muted);max-width:760px}
+  .layout{display:flex;max-width:1180px;margin:0 auto;gap:28px;padding:0 24px 80px}
+  nav{position:sticky;top:0;align-self:flex-start;padding-top:26px;min-width:210px;
+    max-height:100vh;overflow-y:auto;font-size:14px}
+  nav a{display:block;color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:7px;border-left:2px solid transparent}
+  nav a:hover{color:var(--ink);background:var(--panel)}
+  nav .grp{margin:14px 0 4px;color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+  main{flex:1;min-width:0;padding-top:18px}
+  section{padding:26px 0;border-bottom:1px solid var(--line)}
+  h2{font-size:22px;margin:0 0 6px}
+  h3{font-size:17px;margin:22px 0 8px;color:var(--accent2)}
+  .lead{color:var(--muted);margin:0 0 14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:14px 0}
+  .card.idp{border-left:4px solid var(--idp)}
+  .card.tenant{border-left:4px solid var(--tenant)}
+  .card.accent{border-left:4px solid var(--accent)}
+  .card.warn{border-left:4px solid var(--warn)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:860px){.grid2{grid-template-columns:1fr}.layout{flex-direction:column}nav{position:static;max-height:none}}
+  code{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;background:#0b0f14;border:1px solid var(--line);
+    border-radius:5px;padding:1px 6px;font-size:13.5px;color:#c8d3de}
+  pre{background:#0b0f14;border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;
+    font-size:13.5px;line-height:1.55;margin:10px 0;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace}
+  pre .c{color:var(--muted)}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14.5px}
+  th,td{text-align:left;padding:9px 12px;border:1px solid var(--line);vertical-align:top}
+  th{background:var(--panel2);color:var(--ink)}
+  td .muted{color:var(--muted)}
+  .pill{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:20px;white-space:nowrap}
+  .p200{background:rgba(63,185,80,.18);color:var(--accent2)}
+  .p401{background:rgba(240,136,62,.18);color:var(--warn)}
+  .p403{background:rgba(255,123,114,.18);color:var(--danger)}
+  .pother{background:rgba(110,168,254,.18);color:var(--accent)}
+  .muted{color:var(--muted)}
+  .note{border-left:4px solid var(--accent);background:var(--panel);padding:12px 16px;border-radius:0 10px 10px 0;margin:14px 0}
+  .why{border-left:4px solid var(--accent2);background:var(--panel);padding:12px 16px;border-radius:0 10px 10px 0;margin:14px 0}
+  .warnbox{border-left:4px solid var(--danger);background:var(--panel);padding:12px 16px;border-radius:0 10px 10px 0;margin:14px 0}
+  ul,ol{padding-left:22px}
+  li{margin:5px 0}
+  .tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;background:var(--panel2);
+    color:var(--muted);border:1px solid var(--line);margin-right:6px}
+  .step{display:flex;gap:14px;margin:10px 0}
+  .step .n{flex:none;width:28px;height:28px;border-radius:50%;background:var(--accent);color:#0b0f14;font-weight:700;
+    display:flex;align-items:center;justify-content:center;font-size:14px}
+  .step .b{flex:1}
+  .step .b b{color:var(--ink)}
+  .flow{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.8;color:var(--muted)}
+  .flow b{color:var(--accent2)}
+  .kbd{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;background:var(--panel2);border:1px solid var(--line);
+    border-radius:6px;padding:2px 8px;font-size:13px}
+  .glossary dt{font-weight:700;color:var(--accent);margin-top:12px}
+  .glossary dd{margin:2px 0 0;color:var(--muted)}
+  .analogy{background:rgba(110,168,254,.07);border:1px dashed var(--accent);border-radius:10px;padding:12px 16px;margin:12px 0}
+  .analogy b{color:var(--accent)}
+  a.inline{color:var(--accent);text-decoration:none}
+  a.inline:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<header>
+  <h1>Study Guide — Single Point of Authentication</h1>
+  <p>A friendly, plain-English walkthrough of this project: what it is, the pieces inside it, how
+  the pieces talk to each other, and <i>why</i> each part exists. Extra focus on the two ideas that
+  confuse most beginners — <b>OAuth</b> and <b>Single Sign-On (SSO)</b>.</p>
+</header>
+
+<div class="layout">
+<nav>
+  <div class="grp">Start here</div>
+  <a href="#big-idea">1 · The big idea</a>
+  <a href="#oauth-sso">2 · OAuth &amp; SSO simply</a>
+  <a href="#jwt">3 · What is a JWT?</a>
+  <div class="grp">The system</div>
+  <a href="#components">4 · Key components</a>
+  <a href="#flows">5 · The flows</a>
+  <a href="#validation">6 · The 6 security checks</a>
+  <div class="grp">Why &amp; how</div>
+  <a href="#why">7 · Why each feature</a>
+  <a href="#how">8 · How it's built</a>
+  <a href="#migration">9 · Migration</a>
+  <div class="grp">Practice</div>
+  <a href="#run">10 · How to run it</a>
+  <a href="#glossary">11 · Glossary</a>
+  <a href="#quiz">12 · Quick quiz</a>
+</nav>
+
+<main>
+
+<!-- ============ 1. BIG IDEA ============ -->
+<section id="big-idea">
+  <h2>1 · The big idea</h2>
+  <p class="lead">One sentence: <b>log in once in a central place, then reach every app you're allowed
+  to — without any app being able to see another app's data.</b></p>
+
+  <p>Imagine a company runs many separate apps (here we call them <b>tenants</b>: Tenant A and
+  Tenant B). Today, the painful "before" world looks like this:</p>
+
+  <div class="warnbox">
+    <b>The problem (before):</b> every app keeps its <i>own</i> list of usernames and passwords.
+    A person who uses 3 apps needs <b>3 accounts, 3 passwords, 3 login pages</b>. Annoying for
+    users, and a security headache (passwords copied everywhere).
+  </div>
+
+  <p>This project fixes that with one rule, worth memorizing:</p>
+
+  <div class="card accent" style="text-align:center;font-size:18px">
+    <b>Centralize <span style="color:var(--idp)">authentication</span>. Keep
+    <span style="color:var(--tenant)">authorization</span> local.</b>
+  </div>
+
+  <div class="grid2">
+    <div class="card idp">
+      <span class="tag">AUTHENTICATION</span>
+      <h3 style="margin-top:6px">"Who are you?"</h3>
+      <p class="muted" style="margin:0">Done in <b>one</b> central place — the <b>IdP</b> (Identity
+      Provider). It is the <i>only</i> service that ever checks a password.</p>
+    </div>
+    <div class="card tenant">
+      <span class="tag">AUTHORIZATION</span>
+      <h3 style="margin-top:6px">"What are you allowed to do here?"</h3>
+      <p class="muted" style="margin:0">Decided by <b>each tenant</b>, on its own, against its own
+      database. A tenant never checks passwords — it only checks <i>permission</i>.</p>
+    </div>
+  </div>
+
+  <div class="analogy">
+    <b>Analogy — a music festival.</b> You show your ID once at the <b>main gate</b> (the IdP) and
+    get a <b>wristband</b> (a token). Each <b>stage</b> (a tenant) just glances at your wristband to
+    see if you're allowed in — they don't re-check your ID, and they can't let you into a stage your
+    wristband doesn't cover. The wristband is hard to fake because it has a special mark only the
+    main gate can make.
+  </div>
+</section>
+
+<!-- ============ 2. OAUTH & SSO ============ -->
+<section id="oauth-sso">
+  <h2>2 · OAuth and Single Sign-On, in plain words</h2>
+  <p class="lead">These two terms get mixed up constantly. Here's the simple version, then how this
+  project relates to them.</p>
+
+  <h3>Single Sign-On (SSO) — the <i>experience</i></h3>
+  <p>SSO means: <b>you log in once, and you're now logged into many apps.</b> You don't type your
+  password again at each app. That's it — SSO is about the <i>user experience</i> of "one login,
+  many doors."</p>
+  <div class="analogy">
+    <b>Analogy:</b> your office keycard. You badge in once at the front door; after that the same
+    card opens the gym, the parking garage, and the cafeteria. You didn't re-register at each door.
+  </div>
+
+  <h3>OAuth (and its cousin OIDC) — the <i>rulebook</i></h3>
+  <p><b>OAuth 2.0</b> is a standard set of rules for <i>how</i> apps hand out and accept access
+  without sharing your password. <b>OpenID Connect (OIDC)</b> is a small layer on top of OAuth that
+  adds "and here's proof of <i>who</i> the user is." Together they're the most common way real
+  systems build SSO.</p>
+
+  <p>The key OAuth idea: instead of giving an app your password, a trusted central server gives the
+  app a <b>token</b> — a temporary, limited pass. The app trusts the token, not your password.</p>
+
+  <table>
+    <tr><th>Term</th><th>What it really means</th><th>In this project</th></tr>
+    <tr><td><b>SSO</b></td><td>The goal: log in once, use many apps</td><td>Login at the IdP works for both Tenant A &amp; B</td></tr>
+    <tr><td><b>OAuth 2.0</b></td><td>The rulebook for handing out tokens instead of passwords</td><td>We use the core idea (bearer tokens), simplified</td></tr>
+    <tr><td><b>OIDC</b></td><td>OAuth + "here's who the user is" (identity)</td><td>Our JWT carries identity (<code>sub</code>, <code>email</code>)</td></tr>
+    <tr><td><b>Bearer token</b></td><td>"Whoever <i>bears</i> (holds) this gets access"</td><td>The JWT sent in <code>Authorization: Bearer ...</code></td></tr>
+    <tr><td><b>IdP</b></td><td>Identity Provider — the central login server</td><td><code>auth_service</code></td></tr>
+  </table>
+
+  <div class="note">
+    <b>How this prototype relates to the standards.</b> Real production SSO uses the full OAuth/OIDC
+    <i>redirect dance</i> (your browser bounces to the login site and back, with cookies). This
+    prototype keeps the <b>same trust model</b> — a central issuer mints a signed token, each app
+    verifies it — but skips the browser redirects to stay small. So you're learning the
+    <i>engine</i> of OAuth/SSO without the extra plumbing. The production version (Cognito / OIDC
+    authorization-code flow) is described in the architecture docs as the next step.
+  </div>
+
+  <div class="why">
+    <b>Why not just share the password with each app?</b> Because then every app could store, leak,
+    or misuse it — and you'd have to trust all of them equally. Tokens are better: they expire, they
+    say exactly what you're allowed to do, and an app holding one still can't recover your password.
+    That's the whole reason OAuth exists.
+  </div>
+</section>
+
+<!-- ============ 3. JWT ============ -->
+<section id="jwt">
+  <h2>3 · What is a JWT? (the token that makes it work)</h2>
+  <p class="lead">A <b>JWT</b> (JSON Web Token, say "jot") is the wristband. It's a small piece of
+  text that carries facts about you <i>and</i> a tamper-proof signature.</p>
+
+  <p>A JWT has three parts joined by dots: <code>header.payload.signature</code></p>
+
+  <pre><span class="c">// 1) HEADER — how the token is signed</span>
+{ "alg": "RS256", "kid": "&lt;key id&gt;", "typ": "JWT" }
+
+<span class="c">// 2) PAYLOAD — the facts ("claims") about you</span>
+{
+  "iss": "https://auth.platform.local",  <span class="c">// who issued it (the IdP)</span>
+  "aud": "platform-tenants",             <span class="c">// who it's for (the tenants)</span>
+  "sub": "u_8f3a...",                    <span class="c">// your stable GLOBAL user id</span>
+  "exp": 1700000900,                     <span class="c">// expires after 15 min</span>
+  "email": "alice@example.com",
+  "entitlements": {                      <span class="c">// ⭐ which tenants you may enter</span>
+    "tenant_a": ["member"]
+  }
+}
+
+<span class="c">// 3) SIGNATURE — a math seal only the IdP can create</span></pre>
+
+  <h3>The signature is the magic</h3>
+  <p>The IdP signs the token with a <b>private key</b> that only it has. Anyone can check the seal
+  using the matching <b>public key</b> (which is shared freely). This is called <b>RS256</b> /
+  asymmetric signing.</p>
+
+  <div class="grid2">
+    <div class="card idp">
+      <b>🔒 Private key</b> — secret, lives only at the IdP.<br>
+      <span class="muted">Used to <b>create</b> (sign) tokens. If leaked, attackers could forge tokens.</span>
+    </div>
+    <div class="card tenant">
+      <b>🔓 Public key</b> — shared openly (via JWKS).<br>
+      <span class="muted">Used to <b>check</b> tokens. Safe to publish; it can verify but not forge.</span>
+    </div>
+  </div>
+
+  <div class="why">
+    <b>Why a public/private pair instead of one shared password?</b> If every tenant knew the
+    <i>same</i> secret used to make tokens, any one hacked tenant could forge tokens for all the
+    others. With RS256, tenants only get the <b>public</b> key — enough to <i>verify</i>, never enough
+    to <i>forge</i>. The power to mint tokens stays in exactly one place.
+  </div>
+
+  <div class="analogy">
+    <b>Analogy:</b> a wax seal on a royal letter. Only the king's ring (private key) can stamp it;
+    anyone with a picture of the seal (public key) can confirm it's real, but they can't make their
+    own.
+  </div>
+
+  <h3>JWKS — where the public key is published</h3>
+  <p><b>JWKS</b> (JSON Web Key Set) is just a web page at
+  <code>/.well-known/jwks.json</code> that lists the IdP's public keys. Each tenant downloads it
+  <b>once</b> and remembers (caches) it. The <code>kid</code> ("key id") in the token header tells a
+  tenant <i>which</i> key to use, which makes rotating keys possible later.</p>
+</section>
+
+<!-- ============ 4. COMPONENTS ============ -->
+<section id="components">
+  <h2>4 · Key components (the pieces)</h2>
+  <p class="lead">The whole system is just three running services plus some shared code. Here's each
+  piece and the file where it lives.</p>
+
+  <div class="card idp">
+    <span class="tag" style="background:rgba(163,113,247,.2);color:var(--idp);border-color:var(--idp)">PORT 8000</span>
+    <h3 style="margin-top:6px">Auth service = the IdP <span class="muted">(the central login)</span></h3>
+    <p>The <b>only</b> place passwords are checked. It does two jobs:</p>
+    <ul>
+      <li><code>POST /login</code> — check email + password, then mint (create &amp; sign) a JWT.</li>
+      <li><code>GET /.well-known/jwks.json</code> — publish the public key so tenants can verify tokens.</li>
+      <li><code>POST /signup</code> — (demo extra) create a new global account + entitlements.</li>
+    </ul>
+    <p class="muted">Code: <a class="inline" href="../auth_service/app.py">auth_service/app.py</a> ·
+    Data it owns: <code>identities</code> (humans + password hashes) and <code>entitlements</code>
+    (who may enter which tenant).</p>
+  </div>
+
+  <div class="card tenant">
+    <span class="tag" style="background:rgba(63,185,80,.2);color:var(--tenant);border-color:var(--tenant)">PORTS 8001 &amp; 8002</span>
+    <h3 style="margin-top:6px">Tenant service ×2 = the apps <span class="muted">(Tenant A, Tenant B)</span></h3>
+    <p>The same program run <b>twice</b> with a different <code>TENANT_ID</code> and database. It
+    <b>never</b> checks passwords. It only:</p>
+    <ul>
+      <li>Verifies the token offline (using the cached public key).</li>
+      <li>Checks the token's <code>entitlements</code> include <i>this</i> tenant.</li>
+      <li>Serves only its <b>own</b> data: <code>GET /me</code>, <code>GET /data</code>, <code>GET /healthz</code>.</li>
+    </ul>
+    <p class="muted">Code: <a class="inline" href="../tenant_service/app.py">tenant_service/app.py</a> ·
+    Data it owns: local <code>users</code> (linked to the global id via <code>idp_sub</code>) and
+    <code>data_items</code>.</p>
+  </div>
+
+  <div class="card accent">
+    <span class="tag">SHARED</span>
+    <h3 style="margin-top:6px">Common code <span class="muted">(used by everyone)</span></h3>
+    <ul>
+      <li><a class="inline" href="../common/jwt_tokens.py">common/jwt_tokens.py</a> — the
+        security-critical file. <code>mint()</code> (runs only in the IdP) and <code>verify()</code>
+        (runs in every tenant).</li>
+      <li><a class="inline" href="../common/config.py">common/config.py</a> — pinned constants:
+        issuer, audience, <code>RS256</code>, 15-min token life, 60-second clock leeway.</li>
+    </ul>
+  </div>
+
+  <div class="card warn">
+    <h3 style="margin-top:0">The demo UI <span class="muted">(what you may have open)</span></h3>
+    <p class="muted" style="margin:0">
+    <a class="inline" href="index.html">web/index.html</a> is a small browser page that lets you log
+    in, see the decoded token, and click buttons to call each tenant — so you can <i>watch</i> the
+    same token get accepted by one tenant and refused by another.</p>
+  </div>
+
+  <h3>"One image, many roles"</h3>
+  <p>There is <b>one</b> Docker image. The <code>docker-compose.yml</code> file decides what each
+  container <i>becomes</i> by passing a different command and <code>TENANT_ID</code>. This mirrors
+  real life: every tenant runs the identical app, just pointed at its own database.</p>
+</section>
+
+<!-- ============ 5. FLOWS ============ -->
+<section id="flows">
+  <h2>5 · The flows (how the pieces talk)</h2>
+  <p class="lead">Follow the token. Everything is "get a token from the IdP, then show it to a
+  tenant."</p>
+
+  <h3>Flow A — Log in once, use it everywhere (the happy path)</h3>
+  <div class="step"><div class="n">1</div><div class="b"><b>User → IdP:</b> sends email + password to <code>POST /login</code>.</div></div>
+  <div class="step"><div class="n">2</div><div class="b"><b>IdP:</b> checks the password with bcrypt, reads the user's <code>entitlements</code>, and <b>mints a signed JWT</b>.</div></div>
+  <div class="step"><div class="n">3</div><div class="b"><b>IdP → User:</b> returns the token. The user now holds the wristband.</div></div>
+  <div class="step"><div class="n">4</div><div class="b"><b>User → Tenant A:</b> calls <code>GET /me</code> with header <code>Authorization: Bearer &lt;token&gt;</code>.</div></div>
+  <div class="step"><div class="n">5</div><div class="b"><b>Tenant A:</b> verifies the signature with the cached public key, checks entitlements, finds the local user, returns <span class="pill p200">200</span> with its own data.</div></div>
+  <div class="step"><div class="n">6</div><div class="b"><b>User → Tenant B:</b> shows the <i>same</i> token. No second login needed — that's <b>SSO</b>.</div></div>
+
+  <pre class="flow"><span class="c">           one login                  same token, many apps</span>
+  User ───▶ <b>IdP (8000)</b> ───token───▶ User ───▶ <b>Tenant A (8001)</b>  <span class="p200 pill">200 ok</span>
+                                       └──▶ <b>Tenant B (8002)</b>  depends on entitlements
+            (only place that
+             checks passwords)</pre>
+
+  <h3>Flow B — A token that <i>shouldn't</i> work here (isolation)</h3>
+  <p>Alice is entitled to <b>tenant_a only</b>. She shows her valid token to Tenant B:</p>
+  <pre class="flow">  Alice's token ──▶ <b>Tenant B</b>:  signature is valid ✔
+                              but entitlements = { tenant_a } — no "tenant_b"
+                              ▶ <span class="p403 pill">403 not entitled</span>  <span class="c">(before any data is read!)</span></pre>
+  <p>This is the <b>isolation invariant</b> — the single most important rule. Even a perfectly valid
+  token is refused if it doesn't name <i>this</i> tenant.</p>
+
+  <h3>Flow C — "Entitled, but not yet provisioned" (the subtle one)</h3>
+  <p>A brand-new signed-up user is <i>allowed</i> into Tenant A (entitlement says so), but Tenant A
+  has no local <code>users</code> row for them yet. So:</p>
+  <pre class="flow">  new user ──▶ Tenant A /me  ▶ <span class="p403 pill">403 no local user</span>   <span class="c">entitlement ≠ provisioning</span>
+  click "Provision here"     ▶ tenant creates the local row
+  new user ──▶ Tenant A /me  ▶ <span class="p200 pill">200 ok</span></pre>
+  <div class="note"><b>Lesson:</b> being <i>allowed in</i> (entitlement, decided centrally) is not
+  the same as <i>having an account here</i> (a local row, owned by the tenant). Real systems
+  "provision" the local account just-in-time on first visit.</div>
+</section>
+
+<!-- ============ 6. VALIDATION ============ -->
+<section id="validation">
+  <h2>6 · The 6 security checks (the heart of it)</h2>
+  <p class="lead">Every time a tenant receives a request, it runs these checks <b>in this exact
+  order</b>. The <i>first</i> one that fails decides the error code. Memorize this table — it's the
+  contract.</p>
+
+  <table>
+    <tr><th>#</th><th>Check (in plain words)</th><th>If it fails</th></tr>
+    <tr><td>1</td><td>Is there a proper <code>Authorization: Bearer &lt;token&gt;</code> header?</td><td><span class="pill p401">401</span> missing token</td></tr>
+    <tr><td>2</td><td>Is the signature real, and made with <code>RS256</code>? <span class="muted">(pinned!)</span></td><td><span class="pill p401">401</span> invalid token</td></tr>
+    <tr><td>3</td><td>Is the token still in date (not expired, allowing ±60s)?</td><td><span class="pill p401">401</span> token expired</td></tr>
+    <tr><td>4</td><td>Right issuer (<code>iss</code>) and audience (<code>aud</code>)?</td><td><span class="pill p401">401</span> invalid token</td></tr>
+    <tr><td>5</td><td><b>Do the entitlements name THIS tenant?</b> ⭐</td><td><span class="pill p403">403</span> not entitled</td></tr>
+    <tr><td>6</td><td>Does <code>sub</code> match a local user row here?</td><td><span class="pill p403">403</span> no local user</td></tr>
+    <tr><td>✓</td><td>All passed → serve this tenant's data</td><td><span class="pill p200">200</span> ok</td></tr>
+  </table>
+
+  <div class="warnbox">
+    <b>401 vs 403 — know the difference (a classic interview question):</b><br>
+    <span class="pill p401">401</span> = "I don't know who you are" (authentication failed — bad/expired/forged token).<br>
+    <span class="pill p403">403</span> = "I know who you are, but you're not allowed here" (authorization failed).
+  </div>
+
+  <div class="why">
+    <b>Why is step 5 (<span class="pill p403">403</span>) <i>before</i> any database read so important?</b>
+    Because it means a token for Tenant A can never even <i>touch</i> Tenant B's data — the request
+    is rejected at the door, before a single query runs. That's how "one login for many apps" stays
+    safe: convenience for users, but airtight isolation between tenants.
+  </div>
+
+  <div class="warnbox">
+    <b>Why "pin RS256" in step 2?</b> Old JWT bugs let attackers change the header to
+    <code>alg: none</code> ("no signature, trust me") or trick a server into using the public key as
+    a shared password (<code>HS256</code> confusion). By <i>only</i> accepting <code>RS256</code> and
+    nothing else, those attacks are dead on arrival. In code it's literally
+    <code>algorithms=["RS256"]</code> — never relax it.
+  </div>
+</section>
+
+<!-- ============ 7. WHY ============ -->
+<section id="why">
+  <h2>7 · Why each feature exists</h2>
+  <p class="lead">Every design choice here is answering a real-world "what if?" Here they are as
+  question → answer.</p>
+
+  <table>
+    <tr><th>Feature</th><th>The worry it answers</th></tr>
+    <tr><td><b>Central IdP</b> (one login)</td><td>"Users hate 3 passwords; copied passwords leak." → One account, one password, one place to secure.</td></tr>
+    <tr><td><b>Entitlements inside the token</b></td><td>"What if the IdP is slow or down on every request?" → The token already says what you may access, so tenants don't call the IdP per request.</td></tr>
+    <tr><td><b>Offline verification</b> (cached public key)</td><td>"What if the IdP goes down?" → In-flight users keep working; only <i>new</i> logins are blocked. (Fail-open for validation, fail-closed for new auth.)</td></tr>
+    <tr><td><b>RS256</b> (public/private keys)</td><td>"What if one tenant gets hacked?" → A hacked tenant only has the public key — it can verify but never forge tokens for others.</td></tr>
+    <tr><td><b>Short token life (15 min)</b></td><td>"What if a token is stolen?" → It expires fast, limiting the damage window.</td></tr>
+    <tr><td><b>Same 401 for unknown email &amp; wrong password</b></td><td>"Can an attacker learn which emails are registered?" → No — both fail identically, even taking the same time (dummy hash compare).</td></tr>
+    <tr><td><b>Step-5 isolation check before any DB read</b></td><td>"Could a valid token peek at another tenant's data?" → No — it's rejected before any query runs.</td></tr>
+    <tr><td><b>Local <code>users</code> + <code>idp_sub</code></b></td><td>"How do tenants keep their own profiles/roles?" → They keep their local row and just add a link (<code>idp_sub</code>) to the global identity.</td></tr>
+  </table>
+
+  <div class="note"><b>Reading tip:</b> the project records each of these decisions as an <b>ADR</b>
+  (Architecture Decision Record) in <a class="inline" href="../docs/adr/">docs/adr/</a> — a short
+  document saying "we decided X, because Y, and the trade-off was Z." Great practice for any
+  serious codebase.</div>
+</section>
+
+<!-- ============ 8. HOW ============ -->
+<section id="how">
+  <h2>8 · How it's implemented (the code, gently)</h2>
+  <p class="lead">You don't need to be a Python expert. Here are the few snippets that matter, with
+  the idea explained next to them.</p>
+
+  <h3>Minting a token (IdP only)</h3>
+  <pre>token = pyjwt.encode(payload, private_key_pem,
+                     algorithm="RS256",      <span class="c"># sign with the secret key</span>
+                     headers={"kid": kid})   <span class="c"># say which key was used</span></pre>
+  <p class="muted">The payload holds <code>iss, aud, sub, exp, email, entitlements</code>. Only the
+  IdP has <code>private_key_pem</code>, so only the IdP can do this.</p>
+
+  <h3>Verifying a token (every tenant)</h3>
+  <pre>pyjwt.decode(token, key=public_key,
+             algorithms=["RS256"],        <span class="c"># ⭐ pin — rejects none / HS256</span>
+             issuer=ISSUER, audience=AUDIENCE,
+             leeway=60,                   <span class="c"># allow 60s clock difference</span>
+             options={"require": ["exp","iat","iss","aud","sub"]})</pre>
+  <p class="muted">This single call performs checks 2, 3 and 4. If anything is off, it raises an
+  error and the tenant returns <span class="pill p401">401</span>.</p>
+
+  <h3>The isolation check (step 5)</h3>
+  <pre>entitlements = claims.get("entitlements", {})
+if tenant_id not in entitlements:
+    raise HTTPException(status_code=403, detail="not entitled")  <span class="c"># before any DB read</span></pre>
+
+  <h3>No password enumeration (login)</h3>
+  <pre>if identity is None:
+    bcrypt.checkpw(password, _DUMMY_HASH)   <span class="c"># waste the same time on a fake hash</span>
+    raise HTTPException(401, "invalid credentials")
+if not bcrypt.checkpw(password, identity["password_hash"]):
+    raise HTTPException(401, "invalid credentials")   <span class="c"># identical error</span></pre>
+  <p class="muted">Unknown email and wrong password look <i>and feel</i> the same to an attacker — no
+  hint about which emails exist.</p>
+
+  <h3>The factory pattern (why tests are easy)</h3>
+  <p>Each service is built by a <code>create_app(...)</code> function that takes its database and keys
+  as <i>arguments</i>. Production wiring (<code>asgi.py</code>) passes the real disk paths; tests pass
+  a tiny temporary database and a throwaway key pair. Same code, swappable parts — that's why this
+  project can test the whole security pipeline in milliseconds without Docker.</p>
+</section>
+
+<!-- ============ 9. MIGRATION ============ -->
+<section id="migration">
+  <h2>9 · Migration — moving the old world into the new one</h2>
+  <p class="lead">The apps already existed with their own <code>users</code> tables. How do you move
+  to central login <b>without downtime</b>? That's what <a class="inline" href="../migrate.py">migrate.py</a> does.</p>
+
+  <p>For each existing local user it:</p>
+  <ol>
+    <li><b>Creates (or reuses) a global identity</b> in the IdP, matched by email — so the same person
+      across two tenants becomes <i>one</i> global account.</li>
+    <li><b>Grants the entitlement</b> for that tenant.</li>
+    <li><b>Stamps <code>idp_sub</code></b> back onto the local row, linking local ⇄ global.</li>
+  </ol>
+
+  <div class="why"><b>Why "idempotent"?</b> You can run it again and again safely — already-linked
+  rows are skipped, no duplicates appear. That's what lets you roll out <b>one tenant at a time</b>,
+  pause, and resume, with nothing breaking. Safe migrations are restartable migrations.</div>
+</section>
+
+<!-- ============ 10. RUN ============ -->
+<section id="run">
+  <h2>10 · How to run it yourself</h2>
+  <p class="lead">All commands live in the <code>Makefile</code>. The fastest learning loop:</p>
+
+  <table>
+    <tr><th>Command</th><th>What it does</th></tr>
+    <tr><td><span class="kbd">make venv</span></td><td>One-time setup: create the Python environment.</td></tr>
+    <tr><td><span class="kbd">make test</span></td><td>Run fast unit tests on your machine (no Docker). Great for reading + tweaking.</td></tr>
+    <tr><td><span class="kbd">make up</span></td><td>Build &amp; start all 3 services in Docker (auth :8000, tenant_a :8001, tenant_b :8002).</td></tr>
+    <tr><td><span class="kbd">make e2e</span></td><td>End-to-end tests against the running stack.</td></tr>
+    <tr><td><span class="kbd">make demo</span></td><td>A readable walkthrough script in your terminal.</td></tr>
+    <tr><td><span class="kbd">make down</span></td><td>Stop everything.</td></tr>
+  </table>
+
+  <div class="note"><b>Best way to learn:</b> run <span class="kbd">make up</span>, then open
+  <a class="inline" href="index.html">web/index.html</a> and click around. Log in as <b>alice</b>
+  (tenant_a only) and watch Tenant B reject her with <span class="pill p403">403 not entitled</span>.
+  Then log in as <b>bob</b> (both tenants) and watch both return <span class="pill p200">200</span> —
+  each with its <i>own</i> data. That single contrast is the whole project.</div>
+
+  <div class="analogy"><b>Suggested experiments:</b>
+    <ul style="margin:6px 0 0">
+      <li>Log in, wait 15 minutes, call a tenant → watch it become <span class="pill p401">401 token expired</span>.</li>
+      <li>Sign up a brand-new user, call a tenant → <span class="pill p403">403 no local user</span>, then click <b>Provision here</b> → <span class="pill p200">200</span>.</li>
+      <li>Open the token in the UI and read its decoded claims — find <code>entitlements</code> yourself.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ 11. GLOSSARY ============ -->
+<section id="glossary">
+  <h2>11 · Glossary (quick reference)</h2>
+  <dl class="glossary">
+    <dt>Authentication</dt><dd>Proving <i>who you are</i> (checking a password). Done by the IdP.</dd>
+    <dt>Authorization</dt><dd>Deciding <i>what you may do</i>. Done by each tenant.</dd>
+    <dt>IdP (Identity Provider)</dt><dd>The central login server; the only place passwords are verified.</dd>
+    <dt>Tenant</dt><dd>One app/customer workspace with its own database. Trusts tokens, never checks passwords.</dd>
+    <dt>SSO (Single Sign-On)</dt><dd>Log in once, use many apps without logging in again.</dd>
+    <dt>OAuth 2.0</dt><dd>The standard rulebook for handing out access tokens instead of passwords.</dd>
+    <dt>OIDC</dt><dd>OAuth plus identity info ("who is this user"). The common foundation of modern SSO.</dd>
+    <dt>JWT</dt><dd>A signed token carrying claims about you; the wristband.</dd>
+    <dt>Claim</dt><dd>A fact inside a JWT (e.g. <code>sub</code>, <code>email</code>, <code>entitlements</code>).</dd>
+    <dt>Bearer token</dt><dd>A token where simply holding it grants access; sent as <code>Authorization: Bearer ...</code>.</dd>
+    <dt>RS256</dt><dd>Asymmetric signing: a secret private key signs, a public key verifies.</dd>
+    <dt>JWKS</dt><dd>The public web page listing the IdP's public keys, so tenants can verify offline.</dd>
+    <dt>Entitlement</dt><dd>A grant saying "this identity may access this tenant" (with roles).</dd>
+    <dt>Provisioning</dt><dd>Creating the tenant-local user row. Being entitled ≠ being provisioned.</dd>
+    <dt>idp_sub</dt><dd>The column in a tenant's local <code>users</code> table that links to the global identity (<code>sub</code>).</dd>
+    <dt>Isolation invariant</dt><dd>The rule that a token must never read a tenant it isn't entitled to — enforced before any DB read.</dd>
+  </dl>
+</section>
+
+<!-- ============ 12. QUIZ ============ -->
+<section id="quiz">
+  <h2>12 · Quick self-quiz</h2>
+  <p class="lead">Try to answer before expanding. If you can do these, you understand the project.</p>
+
+  <details class="card"><summary>1. Which service is allowed to check passwords, and why only that one?</summary>
+    <p class="muted">Only the <b>IdP (auth_service)</b>. Centralizing it means one place to secure, one
+    password per human, and tenants never store credentials. "Centralize authentication."</p></details>
+
+  <details class="card"><summary>2. A token is perfectly valid but a tenant returns 403. What happened?</summary>
+    <p class="muted">Authorization failed, not authentication. Either step 5 (the token's
+    <code>entitlements</code> don't name this tenant → "not entitled") or step 6 (no local user row
+    here → "no local user").</p></details>
+
+  <details class="card"><summary>3. Why give tenants only the public key?</summary>
+    <p class="muted">So a compromised tenant can <i>verify</i> tokens but never <i>forge</i> them. The
+    forging power (private key) stays solely at the IdP. This is the point of RS256.</p></details>
+
+  <details class="card"><summary>4. The IdP goes down. Can existing users still use the tenants?</summary>
+    <p class="muted">Yes — for in-flight tokens. Tenants verify offline with the cached public key, so
+    they don't need the IdP per request. Only <i>new</i> logins (minting tokens) are blocked.</p></details>
+
+  <details class="card"><summary>5. How is this project related to OAuth and SSO?</summary>
+    <p class="muted">It implements the <i>core engine</i> of OAuth/OIDC-style SSO: a central issuer
+    mints a signed token, each app verifies and trusts the signature instead of asking for a
+    password. It skips the browser redirect dance to stay simple, but the trust model is the same.</p></details>
+
+  <details class="card"><summary>6. Why must the entitlement check run before any database query?</summary>
+    <p class="muted">So a token for Tenant A can never even touch Tenant B's data. Rejecting at the
+    door (step 5, 403) is what keeps "one login, many apps" safe — the isolation invariant.</p></details>
+</section>
+
+<p class="muted" style="padding:24px 0 0">Source of truth: <a class="inline" href="../SPEC.md">SPEC.md</a> ·
+Design rationale: <a class="inline" href="../docs/ARCHITECTURE.md">docs/ARCHITECTURE.md</a> &amp;
+<a class="inline" href="../docs/adr/">the ADRs</a> · Try it: <a class="inline" href="index.html">the demo UI</a>.</p>
+
+</main>
+</div>
+</body>
+</html>
