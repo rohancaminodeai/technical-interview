@@ -20,6 +20,10 @@ services:
   auth:
     <<: *app
     command: uvicorn auth_service.asgi:app --host 0.0.0.0 --port 8000
+    environment:
+      KEYS_DIR: /app/keys
+      DATA_DIR: /app/data
+      CORS_ALLOW_ORIGINS: http://localhost:8080   # demo UI origin
     ports:
       - "8000:8000"
     depends_on:
@@ -38,6 +42,7 @@ services:
       TENANT_ID: tenant_a
       KEYS_DIR: /app/keys
       DATA_DIR: /app/data
+      CORS_ALLOW_ORIGINS: http://localhost:8080   # demo UI origin
     ports:
       - "8001:8000"
     depends_on:
@@ -56,6 +61,7 @@ services:
       TENANT_ID: tenant_b
       KEYS_DIR: /app/keys
       DATA_DIR: /app/data
+      CORS_ALLOW_ORIGINS: http://localhost:8080   # demo UI origin
     ports:
       - "8002:8000"
     depends_on:
@@ -66,3 +72,14 @@ services:
       interval: 3s
       timeout: 3s
       retries: 10
+
+  # Dumb static-file host for the demo page. No proxying — the browser talks to
+  # auth/tenant_a/tenant_b directly (CORS-allowed), mirroring offline validation.
+  ui:
+    image: python:3.13-slim
+    working_dir: /web
+    command: python -m http.server 8080
+    volumes:
+      - ./web:/web:ro
+    ports:
+      - "8080:8080"

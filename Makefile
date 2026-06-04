@@ -3,7 +3,7 @@
 
 PY := .venv/bin/python
 
-.PHONY: help venv test up down restart logs e2e demo keys seed clean
+.PHONY: help venv test up down restart logs e2e demo ui keys seed clean
 
 help:
 	@echo "make venv   - create .venv and install requirements"
@@ -11,6 +11,7 @@ help:
 	@echo "make up     - build + start the 3-service stack (detached, waits for health)"
 	@echo "make e2e    - run end-to-end tests against the running stack"
 	@echo "make demo   - run the human-readable demo walkthrough"
+	@echo "make ui     - print the demo web UI URL (started by 'make up')"
 	@echo "make logs   - tail stack logs"
 	@echo "make down   - stop the stack and remove volumes"
 	@echo "make clean  - remove generated keys + SQLite DBs"
@@ -39,6 +40,9 @@ e2e:
 
 demo:
 	./demo.sh
+
+ui:
+	@echo "Demo UI: http://localhost:8080  (run 'make up' first)"
 
 keys:
 	$(PY) keys/gen_keys.py

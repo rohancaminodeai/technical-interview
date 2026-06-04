@@ -47,6 +47,18 @@ make down      # stop + clean up
 
 Services: **auth** → `:8000`, **tenant_a** → `:8001`, **tenant_b** → `:8002`.
 
+### Demo UI
+
+`make up` also starts a static web page at **http://localhost:8080**. Click the
+*alice* / *bob* presets to log in, inspect the decoded token (with a live expiry
+countdown), then call each tenant's `/me` and `/data` and watch the 200 vs **403**
+isolation live. The *Sign up* tab registers a new identity in the IdP only — it
+logs in fine but a tenant call returns **403 no local user**, showing that an
+entitlement is not the same as being provisioned at the tenant. Click **Provision
+here** on that tenant to close the gap (JIT provisioning — the tenant creates the
+local user from the token), then `/me` and `/data` return **200**. (The browser
+calls all three services directly; they allow the UI's origin via env-gated CORS.)
+
 ### Demo users (seeded)
 
 | User | Password | Entitlements | Shows |

@@ -45,10 +45,10 @@ def tenant_b(keypair, tmp_path):
     return _make_tenant(keypair, tmp_path, "tenant_b")
 
 
-def _token(keypair, entitlements, sub=ALICE_SUB, **overrides):
+def _token(keypair, entitlements, sub=ALICE_SUB, email="alice@example.com", **overrides):
     return mint(
         sub=sub,
-        email="alice@example.com",
+        email=email,
         entitlements=entitlements,
         private_key_pem=keypair.private_pem,
         kid=keypair.kid,
@@ -135,6 +135,52 @@ def test_entitled_but_no_local_user_is_403(tenant_a, keypair):
     resp = tenant_a.get("/me", headers=_auth(token))
     assert resp.status_code == 403
     assert resp.json()["detail"] == "no local user"
+
+
+# --- POST /provision (JIT provisioning) ----------------------------------
+
+def test_provision_creates_local_user_then_me_works(tenant_a, keypair):
+    # A new global identity entitled to tenant_a but never provisioned locally.
+    token = _token(
+        keypair, {"tenant_a": ["member"]}, sub="u_carol", email="carol@example.com"
+    )
+    assert tenant_a.get("/me", headers=_auth(token)).status_code == 403  # no local user yet
+
+    prov = tenant_a.post("/provision", headers=_auth(token))
+    assert prov.status_code == 200
+    assert prov.json()["provisioned"] is True
+
+    me = tenant_a.get("/me", headers=_auth(token))
+    assert me.status_code == 200
+    assert me.json()["email"] == "carol@example.com"
+
+    data = tenant_a.get("/data", headers=_auth(token)).json()
+    assert [i["label"] for i in data["items"]] == ["carol's tenant_a record"]
+
+
+def test_provision_is_idempotent(tenant_a, keypair):
+    token = _token(
+        keypair, {"tenant_a": ["member"]}, sub="u_carol", email="carol@example.com"
+    )
+    assert tenant_a.post("/provision", headers=_auth(token)).json()["provisioned"] is True
+    second = tenant_a.post("/provision", headers=_auth(token))
+    assert second.status_code == 200
+    assert second.json()["provisioned"] is False
+
+
+def test_provision_requires_entitlement(tenant_b, keypair):
+    # Entitled to tenant_a only → cannot provision at tenant_b (isolation holds).
+    token = _token(
+        keypair, {"tenant_a": ["member"]}, sub="u_carol", email="carol@example.com"
+    )
+    resp = tenant_b.post("/provision", headers=_auth(token))
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "not entitled"
+
+
+def test_provision_requires_valid_token(tenant_a):
+    assert tenant_a.post("/provision").status_code == 401
+    assert tenant_a.post("/provision", headers=_auth("garbage")).status_code == 401
 
 
 # --- /data isolation even with a multi-tenant token ----------------------

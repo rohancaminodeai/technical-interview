@@ -87,6 +87,66 @@ def test_login_email_match_is_case_insensitive(client):
     assert resp.status_code == 200
 
 
+# --- POST /signup ---------------------------------------------------------
+
+def test_signup_creates_identity_with_entitlements(client):
+    tc, _ = client
+    resp = tc.post(
+        "/signup",
+        json={"email": "carol@example.com", "password": PASSWORD, "tenants": ["tenant_a"]},
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["sub"].startswith("u_")
+    assert body["email"] == "carol@example.com"
+    assert body["entitlements"] == {"tenant_a": ["member"]}
+
+
+def test_signup_then_login_issues_token_with_entitlement(client):
+    tc, kp = client
+    tc.post(
+        "/signup",
+        json={"email": "carol@example.com", "password": PASSWORD, "tenants": ["tenant_a"]},
+    )
+    resp = tc.post("/login", json={"email": "carol@example.com", "password": PASSWORD})
+    assert resp.status_code == 200
+    claims = verify(resp.json()["access_token"], kp.jwks)
+    assert claims["email"] == "carol@example.com"
+    assert claims["entitlements"] == {"tenant_a": ["member"]}
+
+
+def test_signup_duplicate_email_is_409(client):
+    tc, _ = client
+    resp = tc.post(
+        "/signup", json={"email": "alice@example.com", "password": PASSWORD, "tenants": []}
+    )
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "email already registered"
+
+
+def test_signup_unknown_tenant_is_400(client):
+    tc, _ = client
+    resp = tc.post(
+        "/signup",
+        json={"email": "carol@example.com", "password": PASSWORD, "tenants": ["tenant_x"]},
+    )
+    assert resp.status_code == 400
+    assert "tenant_x" in resp.json()["detail"]
+
+
+def test_signup_with_no_tenants_succeeds_unentitled(client):
+    tc, _ = client
+    resp = tc.post("/signup", json={"email": "carol@example.com", "password": PASSWORD})
+    assert resp.status_code == 201
+    assert resp.json()["entitlements"] == {}
+
+
+def test_signup_empty_password_is_422(client):
+    tc, _ = client
+    resp = tc.post("/signup", json={"email": "carol@example.com", "password": ""})
+    assert resp.status_code == 422
+
+
 # --- GET /.well-known/jwks.json ------------------------------------------
 
 def test_jwks_endpoint_publishes_public_key(client):
