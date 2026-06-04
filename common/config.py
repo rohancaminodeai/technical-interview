@@ -25,3 +25,11 @@ CLOCK_SKEW_LEEWAY_SECONDS = 60
 
 # --- prototype tenants -----------------------------------------------------
 KNOWN_TENANTS = ("tenant_a", "tenant_b")
+
+# --- demo UI (CORS) --------------------------------------------------------
+# Comma-separated origins allowed to call the services from a browser.
+# Empty (the default) => no CORS middleware is installed, so production and the
+# unit/e2e suites behave exactly as before.
+CORS_ALLOW_ORIGINS = tuple(
+    o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",") if o.strip()
+)

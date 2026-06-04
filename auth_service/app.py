@@ -19,9 +19,11 @@ from common import jwt_tokens
 from common.config import (
     DATA_DIR,
     JWKS_PATH,
+    KNOWN_TENANTS,
     PRIVATE_KEY_PATH,
     TOKEN_TTL_SECONDS,
 )
+from common.web import maybe_enable_cors
 
 # Precomputed once so the unknown-email path does real bcrypt work and stays
 # timing-indistinguishable from a wrong-password attempt (SPEC §4.1).
@@ -35,8 +37,15 @@ class LoginRequest(BaseModel):
     password: NonEmptyStr
 
 
+class SignupRequest(BaseModel):
+    email: NonEmptyStr
+    password: NonEmptyStr
+    tenants: list[str] = []  # subset of KNOWN_TENANTS; roles default to ["member"]
+
+
 def create_app(*, db_path: str, private_key_pem: str, kid: str, jwks: dict) -> FastAPI:
     app = FastAPI(title="auth-service")
+    maybe_enable_cors(app)
 
     @app.post("/login")
     def login(req: LoginRequest):
@@ -68,6 +77,32 @@ def create_app(*, db_path: str, private_key_pem: str, kid: str, jwks: dict) -> F
             "token_type": "Bearer",
             "expires_in": TOKEN_TTL_SECONDS,
         }
+
+    @app.post("/signup", status_code=201)
+    def signup(req: SignupRequest):
+        """Register a new global identity + chosen entitlements (demo, IdP-only).
+
+        Deliberately does NOT provision tenant-side `users` rows, so a fresh
+        account logs in fine but hits 403 "no local user" at a tenant — the
+        demo's lesson that entitlement is not the same as provisioning.
+        """
+        unknown = [t for t in req.tenants if t not in KNOWN_TENANTS]
+        if unknown:
+            raise HTTPException(status_code=400, detail=f"unknown tenants: {unknown}")
+
+        conn = store.connect(db_path)
+        try:
+            pw_hash = bcrypt.hashpw(req.password.encode(), bcrypt.gensalt()).decode()
+            sub, created = store.upsert_identity(conn, req.email, pw_hash)
+            if not created:
+                raise HTTPException(status_code=409, detail="email already registered")
+            for tenant in req.tenants:
+                store.upsert_entitlement(conn, sub, tenant, ["member"])
+            entitlements = store.get_entitlements(conn, sub)
+        finally:
+            conn.close()
+
+        return {"sub": sub, "email": req.email, "entitlements": entitlements}
 
     @app.get("/.well-known/jwks.json")
     def jwks_document():

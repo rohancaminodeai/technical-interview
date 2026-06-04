@@ -44,3 +44,28 @@ def list_items_for_owner(conn: sqlite3.Connection, owner_email: str) -> list[sql
         "SELECT id, label FROM data_items WHERE owner_email = ? COLLATE NOCASE ORDER BY id",
         (owner_email,),
     ).fetchall()
+
+
+def provision_user(
+    conn: sqlite3.Connection, idp_sub: str, email: str, tenant_id: str
+) -> tuple[sqlite3.Row, bool]:
+    """Create the local user row for a global identity (JIT provisioning).
+
+    Idempotent on idp_sub: if the row already exists it is returned untouched.
+    On first provision a starter data_item is added so /data shows something.
+    Returns (user_row, created).
+    """
+    existing = get_user_by_idp_sub(conn, idp_sub)
+    if existing is not None:
+        return existing, False
+    conn.execute(
+        "INSERT INTO users (idp_sub, email, password_hash) VALUES (?, ?, NULL)",
+        (idp_sub, email),
+    )
+    handle = email.split("@")[0]
+    conn.execute(
+        "INSERT INTO data_items (owner_email, label) VALUES (?, ?)",
+        (email, f"{handle}'s {tenant_id} record"),
+    )
+    conn.commit()
+    return get_user_by_idp_sub(conn, idp_sub), True
